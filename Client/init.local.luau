@@ -8,12 +8,25 @@ local background = gui.Background
 local canvas = gui.UI
 local scrollingFrame = canvas.ScrollingFrame
 
-function setUpSimulation()
+function setUpSimulation(button:TextButton)
+	local moduleToRun:InstanceHandle = button:GetAttribute("Module") 
+	
+	require(moduleToRun:Get()::ModuleScript).run()
+	
 	tweenService:Create(background.Container, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {GroupTransparency = 1}):Play()
 	tweenService:Create(canvas, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {GroupTransparency = 1}):Play()
+	
+	task.wait(0.5)
+	
+	canvas.Position = UDim2.fromScale(5, 5)
+	background.Container.Position = UDim2.fromScale(5, 5)
 end
 
 function init()
+	pcall(function()
+		game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+	end)
+	
 	tweenService:Create(background.Container.Scroll, TweenInfo.new(15, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), {Position = UDim2.fromScale(0, -1)}):Play()
 
 	task.spawn(function()
@@ -46,7 +59,7 @@ function init()
 			
 			task.wait(0.5)
 			
-			setUpSimulation()
+			setUpSimulation(button)
 		end)
 	end
 end
