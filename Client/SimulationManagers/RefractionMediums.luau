@@ -8,6 +8,8 @@ local replicatedStorage = game:GetService("ReplicatedStorage")
 
 local simulationAssets = replicatedStorage.SimulationAssets
 
+local nAir = 1
+
 local beamModel:Model?
 local mediumFolder:Folder?
 
@@ -54,10 +56,27 @@ function findNextMediumAbove(Y) : (BasePart?, number?, number?)
 	if not mediumFolder then return nil, nil, nil end
 	
 	local nextMedium = nil
+	local bufferMedium = nil
 	
 	for i, medium in mediumFolder:GetChildren()::{BasePart} do
 		if medium.Position.Y + (medium.Size.Y / 2) <= Y then continue end
 		
+		if not bufferMedium then
+			bufferMedium = medium
+		else
+			if medium.Position.Y + (medium.Size.Y / 2) < bufferMedium.Position.Y + (bufferMedium.Size.Y / 2) then
+				bufferMedium = medium
+			end
+		end
+	end
+	
+	if not bufferMedium then
+		return nil, nil, nAir
+	end
+	
+	for i, medium in mediumFolder:GetChildren()::{BasePart} do
+		if medium.Position.Y + (medium.Size.Y / 2) <= bufferMedium.Position.Y + (bufferMedium.Size.Y / 2) + 1e-5 then continue end
+
 		if not nextMedium then
 			nextMedium = medium
 		else
@@ -67,7 +86,7 @@ function findNextMediumAbove(Y) : (BasePart?, number?, number?)
 		end
 	end
 	
-	return if nextMedium then nextMedium else nil, if nextMedium then nextMedium.Position.Y + (nextMedium.Size.Y / 2) else nil, if nextMedium then nextMedium:GetAttribute("RefractiveIndex") else nil
+	return if bufferMedium then bufferMedium else nil, if bufferMedium then bufferMedium.Position.Y + (bufferMedium.Size.Y / 2) else nil, if nextMedium then nextMedium:GetAttribute("RefractiveIndex") else nAir
 end
 
 function findNextMediumBelow(Y) : (BasePart?, number?, number?)
@@ -90,9 +109,29 @@ function findNextMediumBelow(Y) : (BasePart?, number?, number?)
 	return if nextMedium then nextMedium else nil, if nextMedium then nextMedium.Position.Y + (nextMedium.Size.Y / 2) else nil, if nextMedium then nextMedium:GetAttribute("RefractiveIndex") else nil
 end
 
+function findCurrentMedium(Y) : number
+	if not mediumFolder then return nAir end
+
+	local nextMedium = nil
+
+	for i, medium in mediumFolder:GetChildren()::{BasePart} do
+		if medium.Position.Y + (medium.Size.Y / 2) <= Y then continue end
+
+		if not nextMedium then
+			nextMedium = medium
+		else
+			if medium.Position.Y + (medium.Size.Y / 2) < nextMedium.Position.Y + (nextMedium.Size.Y / 2) then
+				nextMedium = medium
+			end
+		end
+	end
+
+	return if nextMedium then nextMedium:GetAttribute("RefractiveIndex") else nAir
+end
+
 --------------------------------------------- Primary Functions ---------------------------------------------
 
-function createRefractionBeam(incidentAngle:number, direction:number, refractiveIndex:number, Y1:number, Y2:number)
+--[[function createRefractionBeam(incidentAngle:number, direction:number, refractiveIndex:number, Y1:number, Y2:number)
 	if not beamModel then return end
 	
 	local pointOfIncidenceX:number, pointOfIncidenceY:number = Y2 * math.tan(math.rad(incidentAngle)), Y1 - Y2
@@ -112,6 +151,29 @@ function createRefractionBeam(incidentAngle:number, direction:number, refractive
 	beam.Orientation = Vector3.new(0, 0, -math.deg(refractionAngle) + 90)
 
 	beam.CFrame *= CFrame.new((beam.Size.X / 2), 0, 0)
+end]]--
+
+function createRefraction(n1:number, n2:number, directionY:number, incidentAngle:number, X:number, Y:number)
+	if not beamModel then return end
+	
+	print(n1, n2)
+	
+	local laser = workspace.Simulation:FindFirstChild("Laser")::BasePart
+	local blast = laser:FindFirstChild("Blast")::Attachment
+	
+	local directionX = if math.abs(laser.Orientation.Z) < 90 then 1 elseif math.abs(laser.Orientation.Z) > 90 then -1 else 0
+	local angleOfRefraction = math.deg(math.asin((n1 * math.sin(math.rad(incidentAngle))) / n2))
+	
+	local beam = beamModel:FindFirstChild("BeamPart2")::BasePart
+
+	if not beam then
+		beam = simulationAssets.MediumRefraction.BeamPart:Clone()
+		beam.Name = "BeamPart2"
+		beam.Parent = beamModel
+	end
+	
+	beam.Size = Vector3.new(1000, 0.1, 0.1)
+	beam.CFrame = CFrame.new(blast.WorldPosition.X + (-1 * directionY * directionX * ((blast.WorldPosition.Y - Y) * math.tan(math.rad(incidentAngle)))), Y, -21.4) * CFrame.Angles(0, 0, math.rad(directionY * (90 - directionX * angleOfRefraction))) * CFrame.new((beam.Size.X / 2), 0, 0)
 end
 
 function createBeam()
@@ -124,11 +186,53 @@ function createBeam()
 	
 	local beam = beamModel:FindFirstChild("BeamPart")::BasePart
 	
-	local incidentAngle = math.abs(math.abs(laser.Orientation.Z ) - 90)
+	local incidentAngle, direction = math.abs(math.abs(laser.Orientation.Z) - 90), laser.Orientation.Z / math.abs(laser.Orientation.Z)
 	
-	local mediumHeight, direction, n = findClosestMediums(incidentAngle)
+	if math.isinf(direction) then
+		beam.Size = Vector3.new(1000, 0.1, 0.1)
+		
+		clearRefractiveBeams()
+	else
+		if direction == 1 then
+			local medium, Y, n = findNextMediumAbove(blast.WorldPosition.Y)
+			
+			if not medium or not Y or not n then
+				beam.Size = Vector3.new(1000, 0.1, 0.1)
+
+				clearRefractiveBeams()
+			else
+				local height = Y - blast.WorldPosition.Y
+				local hypotenuse = height / math.cos(math.rad(incidentAngle))
+				
+				beam.Size = Vector3.new(hypotenuse, 0.1, 0.1)
+				
+				createRefraction(findCurrentMedium(blast.WorldPosition.Y), n, direction, incidentAngle, blast.WorldPosition.X + ((blast.WorldPosition.Y - Y) * math.tan(math.rad(incidentAngle))), Y)
+			end
+		else
+			local medium, Y, n = findNextMediumBelow(blast.WorldPosition.Y)
+			
+			if not medium or not Y or not n then
+				beam.Size = Vector3.new(1000, 0.1, 0.1)
+
+				clearRefractiveBeams()
+			else
+				local height = blast.WorldPosition.Y - Y
+				local hypotenuse = height / math.cos(math.rad(incidentAngle))
+
+				beam.Size = Vector3.new(hypotenuse, 0.1, 0.1)
+				
+				createRefraction(findCurrentMedium(blast.WorldPosition.Y), n, direction, incidentAngle, blast.WorldPosition.X + (height * math.tan(math.rad(incidentAngle))), Y)
+			end
+		end
+		
+		--print(findNextMediumBelow(blast.WorldPosition.Y), findCurrentMedium(blast.WorldPosition.Y), findNextMediumAbove(blast.WorldPosition.Y))
+		
+		--print(findNextMediumAbove(blast.WorldPosition.Y))
+	end
 	
-	--[[if not mediumHeight or not direction or not n then
+	--[[local mediumHeight, direction, n = findClosestMediums(incidentAngle)
+	
+	if not mediumHeight or not direction or not n then
 		beam.Size = Vector3.new(1000, 0.1, 0.1)
 		
 		clearRefractiveBeams()
@@ -141,9 +245,6 @@ function createBeam()
 		beam.Size = Vector3.new(hypotenuse, 0.1, 0.1)
 	end]]--
 	
-	print(incidentAngle)
-	
-	beam.Size = Vector3.new(1000, 0.1, 0.1)
 	beam.CFrame = blast.WorldCFrame * CFrame.new((beam.Size.X / 2), 0, 0)
 end
 
