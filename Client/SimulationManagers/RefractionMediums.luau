@@ -5,32 +5,38 @@ local module = {}
 
 local tweenService = game:GetService("TweenService")
 local replicatedStorage = game:GetService("ReplicatedStorage")
+local players = game:GetService("Players")
 
 local simulationAssets = replicatedStorage.SimulationAssets
 
 local nAir = 1
 
-local beamModel:Model?
 local mediumFolder:Folder?
+local laserFolder:Folder?
+local beamFolder:Folder?
+local gui:typeof(simulationAssets.MediumRefraction.RefractionMediumsUI)?
 
 --------------------------------------------- Helper Functions ---------------------------------------------
 
-function clearRefractiveBeams()
-	if not beamModel then return end
+function clearRefractiveBeams(laser:typeof(simulationAssets.MediumRefraction.Laser))
+	if not beamFolder then return end
 	
-	for i, beam in beamModel:GetChildren() do
-		if beam.Name == "BeamPart" or not beam:IsA("BasePart") then continue end
+	for i, beamModel in beamFolder:GetChildren() do
+		if beamModel.Name ~= "Beam" .. laser.Name:sub(6) then continue end
 		
-		beam:Destroy()
+		for j, beam in beamModel:GetChildren() do
+			if beam.Name == "BeamPart" or not beam:IsA("BasePart") then continue end
+
+			beam:Destroy()
+		end
 	end
 end
 
-function findClosestMediums(laserAngle:number) : (number|{number}?, number?, number?)
+function findClosestMediums(laser:typeof(simulationAssets.MediumRefraction.Laser), laserAngle:number) : (number|{number}?, number?, number?)
 	if not mediumFolder then return nil, nil, nil end
+	if not laserFolder then return nil, nil, nil end
 	
 	local medium = mediumFolder:FindFirstChild("Medium")::BasePart
-	local laser = workspace.Simulation:FindFirstChild("Laser")::BasePart
-	local blast = laser:FindFirstChild("Blast")::Attachment
 	local direction = (90 - laserAngle) / math.abs(90 - laserAngle)
 	
 	if math.isinf(direction) then
@@ -38,13 +44,13 @@ function findClosestMediums(laserAngle:number) : (number|{number}?, number?, num
 	end
 	
 	if direction == -1 then
-		if medium.Position.Y + (medium.Size.Y / 2) >= blast.WorldPosition.Y then
+		if medium.Position.Y + (medium.Size.Y / 2) >= laser.Blast.WorldPosition.Y then
 			return nil, nil, nil
 		else
 			return medium.Position.Y + (medium.Size.Y / 2), direction, medium:GetAttribute("RefractiveIndex")
 		end
 	else
-		if medium.Position.Y + (medium.Size.Y / 2) <= blast.WorldPosition.Y then
+		if medium.Position.Y + (medium.Size.Y / 2) <= laser.Blast.WorldPosition.Y then
 			return nil, nil, nil
 		else
 			return medium.Position.Y + (medium.Size.Y / 2), direction, medium:GetAttribute("RefractiveIndex")
@@ -131,13 +137,14 @@ end
 
 --------------------------------------------- Primary Functions ---------------------------------------------
 
-function createRefraction(n1:number, n2:number, directionY:number, incidentAngle:number, X:number, Y:number)
+function createRefraction(laser:typeof(simulationAssets.MediumRefraction.Laser), n1:number, n2:number, directionY:number, incidentAngle:number, X:number, Y:number)
+	if not beamFolder then return end
+	if not laserFolder then return end
+	
+	local beamModel = beamFolder:FindFirstChild("Beam" .. laser.Name:sub(6))
 	if not beamModel then return end
 	
-	print(n1, n2)
-	
-	local laser = workspace.Simulation:FindFirstChild("Laser")::BasePart
-	local blast = laser:FindFirstChild("Blast")::Attachment
+	--print(n1, n2)
 	
 	local directionX = if math.abs(laser.Orientation.Z) < 90 then 1 elseif math.abs(laser.Orientation.Z) > 90 then -1 else 0
 	local angleOfRefraction
@@ -159,18 +166,19 @@ function createRefraction(n1:number, n2:number, directionY:number, incidentAngle
 	end
 	
 	beam.Size = Vector3.new(1000, 0.1, 0.1)
-	beam.CFrame = CFrame.new(blast.WorldPosition.X + (-1 * directionY * directionX * ((blast.WorldPosition.Y - Y) * math.tan(math.rad(incidentAngle)))) * if n1 > n2 and incidentAngle >= math.deg(math.asin(n2 / n1)) then -1 else 1, Y, -21.4) * CFrame.Angles(0, 0, math.rad(directionY * (90 - directionX * angleOfRefraction))) * CFrame.new((beam.Size.X / 2), 0, 0)
+	beam.CFrame = CFrame.new(laser.Blast.WorldPosition.X + (-1 * directionY * directionX * ((laser.Blast.WorldPosition.Y - Y) * math.tan(math.rad(incidentAngle)))) * if n1 > n2 and incidentAngle >= math.deg(math.asin(n2 / n1)) then -1 else 1, Y, -21.4) * CFrame.Angles(0, 0, math.rad(directionY * (90 - directionX * angleOfRefraction))) * CFrame.new((beam.Size.X / 2), 0, 0)
 end
 
-function createBeam()
-	if not beamModel then return end
+function createBeam(laser:typeof(simulationAssets.MediumRefraction.Laser))
+	if not beamFolder then return end
 	if not mediumFolder then return end
+	if not laserFolder then return end
 	if #workspace.Simulation:GetChildren() == 0 then return end
 	
-	local medium = mediumFolder:FindFirstChild("Medium")::BasePart
-	local laser = workspace.Simulation:FindFirstChild("Laser")::BasePart
-	local blast = laser:FindFirstChild("Blast")::Attachment
+	local beamModel = beamFolder:FindFirstChild("Beam" .. laser.Name:sub(6))
+	if not beamModel then return end
 	
+	local medium = mediumFolder:FindFirstChild("Medium")::BasePart
 	local beam = beamModel:FindFirstChild("BeamPart")::BasePart
 	
 	local incidentAngle, direction = math.abs(math.abs(laser.Orientation.Z) - 90), laser.Orientation.Z / math.abs(laser.Orientation.Z)
@@ -178,54 +186,67 @@ function createBeam()
 	if math.isinf(direction) then
 		beam.Size = Vector3.new(1000, 0.1, 0.1)
 		
-		clearRefractiveBeams()
+		clearRefractiveBeams(laser)
 	else
 		if direction == 1 then
-			local medium, Y, n = findNextMediumAbove(blast.WorldPosition.Y)
+			local medium, Y, n = findNextMediumAbove(laser.Blast.WorldPosition.Y)
 			
 			if not medium or not Y or not n then
 				beam.Size = Vector3.new(1000, 0.1, 0.1)
 
-				clearRefractiveBeams()
+				clearRefractiveBeams(laser)
 			else
-				local height = Y - blast.WorldPosition.Y
+				local height = Y - laser.Blast.WorldPosition.Y
 				local hypotenuse = height / math.cos(math.rad(incidentAngle))
 				
 				beam.Size = Vector3.new(hypotenuse, 0.1, 0.1)
 				
-				createRefraction(findCurrentMedium(blast.WorldPosition.Y), n, direction, incidentAngle, blast.WorldPosition.X + ((blast.WorldPosition.Y - Y) * math.tan(math.rad(incidentAngle))), Y)
+				createRefraction(laser, findCurrentMedium(laser.Blast.WorldPosition.Y), n, direction, incidentAngle, laser.Blast.WorldPosition.X + ((laser.Blast.WorldPosition.Y - Y) * math.tan(math.rad(incidentAngle))), Y)
 			end
 		else
-			local medium, Y, n = findNextMediumBelow(blast.WorldPosition.Y)
+			local medium, Y, n = findNextMediumBelow(laser.Blast.WorldPosition.Y)
 			
 			if not medium or not Y or not n then
 				beam.Size = Vector3.new(1000, 0.1, 0.1)
 
-				clearRefractiveBeams()
+				clearRefractiveBeams(laser)
 			else
-				local height = blast.WorldPosition.Y - Y
+				local height = laser.Blast.WorldPosition.Y - Y
 				local hypotenuse = height / math.cos(math.rad(incidentAngle))
 
 				beam.Size = Vector3.new(hypotenuse, 0.1, 0.1)
 				
-				createRefraction(findCurrentMedium(blast.WorldPosition.Y), n, direction, incidentAngle, blast.WorldPosition.X + (height * math.tan(math.rad(incidentAngle))), Y)
+				createRefraction(laser, findCurrentMedium(laser.Blast.WorldPosition.Y), n, direction, incidentAngle, laser.Blast.WorldPosition.X + (height * math.tan(math.rad(incidentAngle))), Y)
 			end
 		end
 	end
 	
-	beam.CFrame = blast.WorldCFrame * CFrame.new((beam.Size.X / 2), 0, 0)
+	beam.CFrame = laser.Blast.WorldCFrame * CFrame.new((beam.Size.X / 2), 0, 0)
 end
 
 function module.run()
+	if not players.LocalPlayer then return end
+	
 	workspace.Camera.CameraType = Enum.CameraType.Scriptable
 	workspace.Camera.CFrame = CFrame.new(0, 10, 0)
 	
-	local laser = simulationAssets.MediumRefraction.Laser:Clone()
-	laser.Parent = workspace.Simulation
+	laserFolder = Instance.new("Folder")
+	laserFolder.Name = "Laser"
+	laserFolder.IconTint = Color3.new(1, 0, 1)
+	laserFolder.Parent = workspace.Simulation
 	
-	beamModel = Instance.new("Model")
-	beamModel.Name = "Beam"
-	beamModel.Parent = workspace.Simulation
+	local laser = simulationAssets.MediumRefraction.Laser:Clone()
+	laser.Name = "Laser" .. tostring(#laserFolder:GetChildren() + 1)
+	laser.Parent = laserFolder
+	
+	beamFolder = Instance.new("Folder")
+	beamFolder.Name = "Beam"
+	beamFolder.IconTint = Color3.new(1, 0, 0)
+	beamFolder.Parent = workspace.Simulation
+	
+	local beamModel = Instance.new("Model")
+	beamModel.Name = "Beam" .. tostring(#beamFolder:GetChildren() + 1)
+	beamModel.Parent = beamFolder
 	
 	mediumFolder = Instance.new("Folder")
 	mediumFolder.IconTint = Color3.new(0, 1, 1)
@@ -241,6 +262,9 @@ function module.run()
 	
 	local beam = simulationAssets.MediumRefraction.BeamPart:Clone()
 	beam.Parent = beamModel
+	
+	gui = simulationAssets.MediumRefraction.RefractionMediumsUI:Clone()
+	gui.Parent = players.LocalPlayer.PlayerGui
 	
 	local upperLimit = workspace.Camera.CFrame.Position.Y + ((math.abs(workspace.Backdrop.Position.Z) - (workspace.Backdrop.Size.Z / 2)) * math.tan(math.rad(workspace.Camera.FieldOfView / 2)))
 	local lowerLimit = workspace.Camera.CFrame.Position.Y - ((math.abs(workspace.Backdrop.Position.Z) - (workspace.Backdrop.Size.Z / 2)) * math.tan(math.rad(workspace.Camera.FieldOfView / 2))) + 2.5
@@ -268,18 +292,54 @@ function module.run()
 			end)
 		end
 		
-		createBeam()
+		if not laserFolder then return end
+		
+		for i, laser in ipairs(laserFolder:GetChildren()::{typeof(laser)}) do
+			createBeam(laser)
+		end
 	end)
 	
 	laser.Changed:Connect(function()
-		createBeam()
+		createBeam(laser)
 	end)
 	
 	laser.Rotate.Changed:Connect(function()
-		createBeam()
+		createBeam(laser)
 	end)
 	
-	createBeam()
+	gui.TextButton.Activated:Connect(function()
+		if not laserFolder then return end
+		if not beamFolder then return end
+		
+		local newLaser = simulationAssets.MediumRefraction.Laser:Clone()
+		newLaser.Name = "Laser" .. tostring(#laserFolder:GetChildren() + 1)
+		newLaser.Parent = laserFolder
+		
+		local newBeamModel = Instance.new("Model")
+		newBeamModel.Name = "Beam" .. tostring(#beamFolder:GetChildren() + 1)
+		newBeamModel.Parent = beamFolder
+		
+		local newBeam = simulationAssets.MediumRefraction.BeamPart:Clone()
+		newBeam.Parent = newBeamModel
+		
+		newLaser.Changed:Connect(function()
+			createBeam(newLaser)
+		end)
+
+		newLaser.Rotate.Changed:Connect(function()
+			createBeam(newLaser)
+		end)
+		
+		createBeam(newLaser)
+	end)
+	
+	createBeam(laser)
+end
+
+function module.cleanup()
+	if gui then
+		gui:Destroy()
+	end
 end
 
 return module
