@@ -11,11 +11,13 @@ local exit = gui.ExitSimulation
 local scrollingFrame = canvas.ScrollingFrame
 
 local debounce = false
+local currentModule = nil
 
 function setUpSimulation(button:TextButton)
 	local moduleToRun:InstanceHandle = button:GetAttribute("Module") 
 	
-	require(moduleToRun:Get()::ModuleScript).run()
+	currentModule = require(moduleToRun:Get()::ModuleScript)
+	currentModule.run()
 	
 	tweenService:Create(background.Container, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {GroupTransparency = 1}):Play()
 	tweenService:Create(canvas, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {GroupTransparency = 1}):Play()
@@ -61,6 +63,11 @@ function init()
 		background.Container.Position = UDim2.fromScale(0, 0)
 
 		task.wait(0.5)
+		
+		if currentModule then
+			currentModule.cleanup()
+			currentModule = nil
+		end
 		
 		workspace.Simulation:ClearAllChildren()
 		
