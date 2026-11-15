@@ -165,6 +165,7 @@ end
 function createBeam()
 	if not beamModel then return end
 	if not mediumFolder then return end
+	if #workspace.Simulation:GetChildren() == 0 then return end
 	
 	local medium = mediumFolder:FindFirstChild("Medium")::BasePart
 	local laser = workspace.Simulation:FindFirstChild("Laser")::BasePart
