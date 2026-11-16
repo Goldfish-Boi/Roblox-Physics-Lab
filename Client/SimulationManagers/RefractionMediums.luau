@@ -10,6 +10,12 @@ local players = game:GetService("Players")
 local simulationAssets = replicatedStorage.SimulationAssets
 
 local nAir = 1
+local laserDebounce:{typeof(simulationAssets.MediumRefraction.Laser)} = {}
+
+local upperLimit:number?
+local lowerLimit:number?
+local rightHandLimit:number?
+local leftHandLimit:number?
 
 local mediumFolder:Folder?
 local laserFolder:Folder?
@@ -21,8 +27,8 @@ local gui:typeof(simulationAssets.MediumRefraction.RefractionMediumsUI)?
 function clearRefractiveBeams(laser:typeof(simulationAssets.MediumRefraction.Laser))
 	if not beamFolder then return end
 	
-	for i, beamModel in beamFolder:GetChildren() do
-		if beamModel.Name ~= "Beam" .. laser.Name:sub(6) then continue end
+	for i, beamModel in beamFolder:GetDescendants() do
+		if beamModel.Name ~= "BeamModel" .. laser.Name:sub(6) then continue end
 		
 		for j, beam in beamModel:GetChildren() do
 			if beam.Name == "BeamPart" or not beam:IsA("BasePart") then continue end
@@ -141,10 +147,8 @@ function createRefraction(laser:typeof(simulationAssets.MediumRefraction.Laser),
 	if not beamFolder then return end
 	if not laserFolder then return end
 	
-	local beamModel = beamFolder:FindFirstChild("Beam" .. laser.Name:sub(6))
+	local beamModel = beamFolder:FindFirstChild("BeamModel" .. laser.Name:sub(6), true)
 	if not beamModel then return end
-	
-	--print(n1, n2)
 	
 	local directionX = if math.abs(laser.Orientation.Z) < 90 then 1 elseif math.abs(laser.Orientation.Z) > 90 then -1 else 0
 	local angleOfRefraction
@@ -175,7 +179,7 @@ function createBeam(laser:typeof(simulationAssets.MediumRefraction.Laser))
 	if not laserFolder then return end
 	if #workspace.Simulation:GetChildren() == 0 then return end
 	
-	local beamModel = beamFolder:FindFirstChild("Beam" .. laser.Name:sub(6))
+	local beamModel = beamFolder:FindFirstChild("BeamModel" .. laser.Name:sub(6), true)
 	if not beamModel then return end
 	
 	local medium = mediumFolder:FindFirstChild("Medium")::BasePart
@@ -224,10 +228,82 @@ function createBeam(laser:typeof(simulationAssets.MediumRefraction.Laser))
 	beam.CFrame = laser.Blast.WorldCFrame * CFrame.new((beam.Size.X / 2), 0, 0)
 end
 
+function checkLaserSpaceBuffers(laser:typeof(simulationAssets.MediumRefraction.Laser))
+	if not upperLimit then return end
+	if not lowerLimit then return end
+	if not laserFolder then return end
+	
+	if laser.Position.Y > upperLimit - 2.5 then
+		laser.DragDetector.Enabled = false
+		laser.Rotate.DragDetector.Enabled = false
+
+		task.delay(0.75, function()
+			laser.DragDetector.Enabled = true
+			laser.Rotate.DragDetector.Enabled = true
+		end)
+		
+		tweenService:Create(laser, TweenInfo.new(0.75, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Position = laser.Position - Vector3.new(0, 2.5, 0)}):Play()
+		tweenService:Create(laser.Rotate, TweenInfo.new(0.75, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Position = laser.Rotate.Position - Vector3.new(0, 2.5, 0)}):Play()
+	elseif laser.Position.Y < lowerLimit then
+		laser.DragDetector.Enabled = false
+		laser.Rotate.DragDetector.Enabled = false
+		
+		task.delay(0.75, function()
+			laser.DragDetector.Enabled = true
+			laser.Rotate.DragDetector.Enabled = true
+		end)
+
+		tweenService:Create(laser, TweenInfo.new(0.75, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Position = laser.Position + Vector3.new(0, 2.5, 0)}):Play()
+		tweenService:Create(laser.Rotate, TweenInfo.new(0.75, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Position = laser.Rotate.Position + Vector3.new(0, 2.5, 0)}):Play()
+	end
+	
+	local overlapParams = OverlapParams.new()
+	overlapParams.FilterType = Enum.RaycastFilterType.Include
+	overlapParams.FilterDescendantsInstances = laserFolder:GetChildren()
+	
+	for i, laser in laserFolder:GetChildren()::{typeof(simulationAssets.MediumRefraction.Laser)} do
+		if table.find(laserDebounce, laser) then continue end
+		
+		local overlappingParts = workspace:GetPartBoundsInRadius(laser.Position, 0.25, overlapParams)
+		
+		for i, otherLaser in ipairs(overlappingParts::{typeof(simulationAssets.MediumRefraction.Laser)}) do
+			if not otherLaser:HasTag("LaserBase") or otherLaser == laser or table.find(laserDebounce, otherLaser) then continue end
+			
+			table.insert(laserDebounce, laser)
+			table.insert(laserDebounce, otherLaser)
+			
+			laser.DragDetector.Enabled = false
+			laser.Rotate.DragDetector.Enabled = false
+			otherLaser.DragDetector.Enabled = false
+			otherLaser.Rotate.DragDetector.Enabled = false
+
+			task.delay(0.75, function()
+				laser.DragDetector.Enabled = true
+				laser.Rotate.DragDetector.Enabled = true
+				otherLaser.DragDetector.Enabled = true
+				otherLaser.Rotate.DragDetector.Enabled = true
+				
+				local a = table.find(laserDebounce, laser)
+				if a then table.remove(laserDebounce, a) end
+				local b = table.find(laserDebounce, otherLaser)
+				if b then table.remove(laserDebounce, b) end
+			end)
+			
+			local direction = if Vector3.new((laser.Position - otherLaser.Position).Unit.X, (laser.Position - otherLaser.Position).Unit.Y, 0).Magnitude > 1e-3 then Vector3.new((laser.Position - otherLaser.Position).Unit.X, (laser.Position - otherLaser.Position).Unit.Y, 0).Unit else Vector3.yAxis
+			
+			tweenService:Create(laser, TweenInfo.new(0.75, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {CFrame = laser.CFrame + direction * 0.5}):Play()
+			tweenService:Create(laser.Rotate, TweenInfo.new(0.75, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {CFrame = laser.Rotate.CFrame + direction * 0.5}):Play()
+			tweenService:Create(otherLaser, TweenInfo.new(0.75, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {CFrame = otherLaser.CFrame - direction * 0.5}):Play()
+			tweenService:Create(otherLaser.Rotate, TweenInfo.new(0.75, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {CFrame = otherLaser.Rotate.CFrame - direction * 0.5}):Play()
+		end
+	end
+end
+
 function module.run()
 	if not players.LocalPlayer then return end
 	
 	workspace.Camera.CameraType = Enum.CameraType.Scriptable
+	workspace.Camera.ProjectionType = Enum.ProjectionType.Orthographic
 	workspace.Camera.CFrame = CFrame.new(0, 10, 0)
 	
 	laserFolder = Instance.new("Folder")
@@ -244,9 +320,17 @@ function module.run()
 	beamFolder.IconTint = Color3.new(1, 0, 0)
 	beamFolder.Parent = workspace.Simulation
 	
+	local highlightModel = Instance.new("Model")
+	highlightModel.Name = "Hightlight"
+	highlightModel.Parent = beamFolder
+	
+	local beamHighlight = simulationAssets.MediumRefraction.BeamHighlight:Clone()
+	beamHighlight.Parent = highlightModel
+	beamHighlight.Adornee = highlightModel
+	
 	local beamModel = Instance.new("Model")
-	beamModel.Name = "Beam" .. tostring(#beamFolder:GetChildren() + 1)
-	beamModel.Parent = beamFolder
+	beamModel.Name = "BeamModel" .. tostring(#highlightModel:GetChildren())
+	beamModel.Parent = highlightModel
 	
 	mediumFolder = Instance.new("Folder")
 	mediumFolder.IconTint = Color3.new(0, 1, 1)
@@ -256,23 +340,20 @@ function module.run()
 	local medium = simulationAssets.MediumRefraction.Medium:Clone()
 	medium.Parent = mediumFolder
 	
-	local beamHighlight = simulationAssets.MediumRefraction.BeamHighlight:Clone()
-	beamHighlight.Parent = beamModel
-	beamHighlight.Adornee = beamModel
-	
 	local beam = simulationAssets.MediumRefraction.BeamPart:Clone()
 	beam.Parent = beamModel
 	
 	gui = simulationAssets.MediumRefraction.RefractionMediumsUI:Clone()
 	gui.Parent = players.LocalPlayer.PlayerGui
 	
-	local upperLimit = workspace.Camera.CFrame.Position.Y + ((math.abs(workspace.Backdrop.Position.Z) - (workspace.Backdrop.Size.Z / 2)) * math.tan(math.rad(workspace.Camera.FieldOfView / 2)))
-	local lowerLimit = workspace.Camera.CFrame.Position.Y - ((math.abs(workspace.Backdrop.Position.Z) - (workspace.Backdrop.Size.Z / 2)) * math.tan(math.rad(workspace.Camera.FieldOfView / 2))) + 2.5
+	upperLimit = workspace.Camera.CFrame.Position.Y + ((math.abs(workspace.Backdrop.Position.Z) - (workspace.Backdrop.Size.Z / 2)) * math.tan(math.rad(workspace.Camera.FieldOfView / 2)))
+	lowerLimit = workspace.Camera.CFrame.Position.Y - ((math.abs(workspace.Backdrop.Position.Z) - (workspace.Backdrop.Size.Z / 2)) * math.tan(math.rad(workspace.Camera.FieldOfView / 2))) + 2.5
 	
 	print(upperLimit, lowerLimit)
 	
 	medium:GetPropertyChangedSignal("Position"):Connect(function()
-		--print(medium.Position.Y + (medium.Size.Y / 2))
+		if not upperLimit then return end
+		if not lowerLimit then return end
 		
 		if medium.Position.Y + (medium.Size.Y / 2) > upperLimit then
 			medium.DragDetector.Enabled = false
@@ -300,36 +381,42 @@ function module.run()
 	end)
 	
 	laser.Changed:Connect(function()
+		checkLaserSpaceBuffers(laser)
 		createBeam(laser)
 	end)
 	
 	laser.Rotate.Changed:Connect(function()
+		checkLaserSpaceBuffers(laser)
 		createBeam(laser)
 	end)
 	
 	gui.TextButton.Activated:Connect(function()
 		if not laserFolder then return end
 		if not beamFolder then return end
+		if not highlightModel then return end
 		
 		local newLaser = simulationAssets.MediumRefraction.Laser:Clone()
 		newLaser.Name = "Laser" .. tostring(#laserFolder:GetChildren() + 1)
 		newLaser.Parent = laserFolder
 		
 		local newBeamModel = Instance.new("Model")
-		newBeamModel.Name = "Beam" .. tostring(#beamFolder:GetChildren() + 1)
-		newBeamModel.Parent = beamFolder
+		newBeamModel.Name = "BeamModel" .. tostring(#highlightModel:GetChildren())
+		newBeamModel.Parent = highlightModel
 		
 		local newBeam = simulationAssets.MediumRefraction.BeamPart:Clone()
 		newBeam.Parent = newBeamModel
 		
 		newLaser.Changed:Connect(function()
+			checkLaserSpaceBuffers(newLaser)
 			createBeam(newLaser)
 		end)
 
 		newLaser.Rotate.Changed:Connect(function()
+			checkLaserSpaceBuffers(newLaser)
 			createBeam(newLaser)
 		end)
 		
+		checkLaserSpaceBuffers(newLaser)
 		createBeam(newLaser)
 	end)
 	
