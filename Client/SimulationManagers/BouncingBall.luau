@@ -31,7 +31,18 @@ function terminateSimulation()
 end
 
 function checkBallBuffers(ball:typeof(simulationAssets.BouncingBall.Ball))
+	if not surface then return end
+	if not upperLimit then return end
 	
+	if ball.Position.Y + (ball.Border.Size.Y / 2) > upperLimit then
+		ball.DragDetector.Enabled = false
+		
+		task.delay(0.25, function() ball.DragDetector.Enabled = true end)
+	elseif ball.Position.Y - (ball.Border.Size.Y / 2) < surface.Position.Y + (surface.Size.Y / 2) then
+		ball.DragDetector.Enabled = false
+
+		task.delay(0.25, function() ball.DragDetector.Enabled = true end)
+	end
 end
 
 function module.run()
@@ -59,6 +70,10 @@ function module.run()
 	ball.DragDetector.DragEnd:Connect(function()
 		table.remove(dragActive, table.find(dragActive, ball))
 		velocityTable[ball.Name] = 0
+	end)
+	
+	ball.DragDetector.DragContinue:Connect(function()
+		checkBallBuffers(ball)
 	end)
 	
 	upperLimit = workspace.Camera.CFrame.Position.Y + ((math.abs(workspace.Backdrop.Position.Z) - (workspace.Backdrop.Size.Z / 2)) * math.tan(math.rad(workspace.Camera.FieldOfView / 2)))
@@ -90,13 +105,24 @@ function module.run()
 				surface.DragDetector.Enabled = true
 			end)
 		end
+		
+		if not ballFolder then return end
+		
+		for i, ball in ipairs(ballFolder:GetChildren()::{typeof(simulationAssets.BouncingBall.Ball)}) do
+			if ball.Position.Y - (ball.Border.Size.Y / 2) > surface.Position.Y + (surface.Size.Y / 2) then continue end
+			
+			ball.Position = Vector3.new(ball.Position.X, surface.Position.Y + (surface.Size.Y / 2) + (ball.Border.Size.Y / 2), ball.Position.Z)
+			ball.Border.Position = ball.Position
+		end
 	end)
-	8
+	0
 	gravityConnection = runService.RenderStepped:Connect(function(dt)
 		if not surface then terminateSimulation() return end
 		if not ballFolder then terminateSimulation() return end
 		
 		for ballName, velocity in pairs(velocityTable) do
+			if ball.Position.Y - (ball.Border.Size.Y / 2) <= surface.Position.Y + (surface.Size.Y / 2) then continue end
+			
 			velocityTable[ballName] -= dt * gravity / 10
 		end
 		
@@ -104,7 +130,7 @@ function module.run()
 			if table.find(dragActive, ball) then continue end
 			
 			if ball.Position.Y - (ball.Border.Size.Y / 2) <= surface.Position.Y + (surface.Size.Y / 2) and velocityTable[ball.Name] < 0 then
-				velocityTable[ball.Name] *= -1
+				velocityTable[ball.Name] *= -1 * ball:GetAttribute("Elasticity")
 			else
 				ball.Position += Vector3.new(0, velocityTable[ball.Name], 0)
 				ball.Border.Position += Vector3.new(0, velocityTable[ball.Name], 0)
