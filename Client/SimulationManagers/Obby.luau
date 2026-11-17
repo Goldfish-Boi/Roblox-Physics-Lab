@@ -19,6 +19,20 @@ function module.run()
 	if local character = players.LocalPlayer.Character then
 		character:PivotTo(CFrame.new(0, 125, 0))
 	end
+	
+	for i, part in ipairs(obby:GetDescendants()) do
+		if part.Name ~= "Win" then continue end
+		
+		part.Touched:Connect(function()
+			if not players.LocalPlayer then return end
+			
+			script.Win:Play()
+			
+			if local character = players.LocalPlayer.Character then
+				character:PivotTo(CFrame.new(0, 125, 0))
+			end
+		end)
+	end
 end
 
 function module.cleanup()
