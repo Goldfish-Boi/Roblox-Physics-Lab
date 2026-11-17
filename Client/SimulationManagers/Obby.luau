@@ -22,6 +22,7 @@ function module.run()
 	
 	for i, part in ipairs(obby:GetDescendants()) do
 		if part.Name ~= "Win" then continue end
+		if not part:IsA("BasePart") then continue end
 		
 		part.Touched:Connect(function()
 			if not players.LocalPlayer then return end
