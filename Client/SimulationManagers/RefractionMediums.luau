@@ -303,7 +303,6 @@ function module.run()
 	if not players.LocalPlayer then return end
 	
 	workspace.Camera.CameraType = Enum.CameraType.Scriptable
-	workspace.Camera.ProjectionType = Enum.ProjectionType.Orthographic
 	workspace.Camera.CFrame = CFrame.new(0, 10, 0)
 	
 	laserFolder = Instance.new("Folder")
@@ -358,7 +357,7 @@ function module.run()
 		if medium.Position.Y + (medium.Size.Y / 2) > upperLimit then
 			medium.DragDetector.Enabled = false
 			
-			tweenService:Create(medium, TweenInfo.new(0.5, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {Position = Vector3.new(medium.Position.X, upperLimit - (medium.Size.Y / 2) - 2.5, medium.Position.Z)}):Play()
+			tweenService:Create(medium, TweenInfo.new(0.5, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Position = Vector3.new(medium.Position.X, upperLimit - (medium.Size.Y / 2) - 2.5, medium.Position.Z)}):Play()
 			
 			task.delay(0.5, function()
 				medium.DragDetector.Enabled = true
@@ -366,7 +365,7 @@ function module.run()
 		elseif medium.Position.Y + (medium.Size.Y / 2) < lowerLimit then
 			medium.DragDetector.Enabled = false
 			
-			tweenService:Create(medium, TweenInfo.new(0.5, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {Position = Vector3.new(medium.Position.X, lowerLimit - (medium.Size.Y / 2) + 2.5, medium.Position.Z)}):Play()
+			tweenService:Create(medium, TweenInfo.new(0.5, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Position = Vector3.new(medium.Position.X, lowerLimit - (medium.Size.Y / 2) + 2.5, medium.Position.Z)}):Play()
 			
 			task.delay(0.5, function()
 				medium.DragDetector.Enabled = true
