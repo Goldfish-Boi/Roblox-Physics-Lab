@@ -115,7 +115,7 @@ function module.run()
 			ball.Border.Position = ball.Position
 		end
 	end)
-	0
+	
 	gravityConnection = runService.RenderStepped:Connect(function(dt)
 		if not surface then terminateSimulation() return end
 		if not ballFolder then terminateSimulation() return end
