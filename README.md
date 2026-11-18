@@ -14,4 +14,5 @@ Instuctions to use source code:
 Roblox Physics Lab currently contains the following simulations:
 - Medium Refraction - See how light behaves when moving through transparent mediums of different refractive indexes. Drag the blue part of the laser to move it and the magenta part to rotate it. Drag the medium to change its height. Add as many lasers as you like!
 - Bouncy Ball - See how a ball falling loses its energy when it hits the surface. Drag the ball to move it around. Drag the surface to change its height.
-- Obby - Not a physics simulation at all, a bonus game to play added just for fun.
+- Deviation Probability - See how a pattern forms when balls fall through a plinko board.
+- Obby - Not a physics simulation at all, a bonus game to play added just for fun. Composed of four obbies of increasing difficulty.
