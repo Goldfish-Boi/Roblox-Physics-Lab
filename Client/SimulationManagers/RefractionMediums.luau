@@ -458,6 +458,10 @@ function module.cleanup()
 	if gui then
 		gui:Destroy()
 	end
+	
+	if indexBillboard then
+		indexBillboard:Destroy()
+	end
 end
 
 return module
