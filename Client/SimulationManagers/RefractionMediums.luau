@@ -21,6 +21,7 @@ local mediumFolder:Folder?
 local laserFolder:Folder?
 local beamFolder:Folder?
 local gui:typeof(simulationAssets.MediumRefraction.RefractionMediumsUI)?
+local indexBillboard:typeof(simulationAssets.MediumRefraction.IndexBillboard)?
 
 --------------------------------------------- Helper Functions ---------------------------------------------
 
@@ -348,11 +349,42 @@ function module.run()
 	upperLimit = workspace.Camera.CFrame.Position.Y + ((math.abs(workspace.Backdrop.Position.Z) - (workspace.Backdrop.Size.Z / 2)) * math.tan(math.rad(workspace.Camera.FieldOfView / 2)))
 	lowerLimit = workspace.Camera.CFrame.Position.Y - ((math.abs(workspace.Backdrop.Position.Z) - (workspace.Backdrop.Size.Z / 2)) * math.tan(math.rad(workspace.Camera.FieldOfView / 2))) + 2.5
 	
+	indexBillboard = simulationAssets.MediumRefraction.IndexBillboard:Clone()
+	indexBillboard.Adornee = workspace.WorldOrigin
+	indexBillboard.ExtentsOffsetWorldSpace = Vector3.new(0, ((medium.Position.Y + (medium.Size.Y / 2)) + lowerLimit) / 2, medium.Position.Z * 2)
+	indexBillboard.Parent = players.LocalPlayer.PlayerGui
+	
 	print(upperLimit, lowerLimit)
+	
+	indexBillboard.TextBox.FocusLost:Connect(function()
+		if not indexBillboard then return end
+		if not laserFolder then return end
+		
+		local newN = tonumber(indexBillboard.TextBox.Text)
+		
+		if not newN then
+			medium:SetAttribute("RefractiveIndex", 1.5)
+			
+			for i, laser in ipairs(laserFolder:GetChildren()::{typeof(laser)}) do
+				createBeam(laser)
+			end
+			
+			return
+		end
+		
+		medium:SetAttribute("RefractiveIndex", newN)
+		
+		for i, laser in ipairs(laserFolder:GetChildren()::{typeof(laser)}) do
+			createBeam(laser)
+		end
+	end)
 	
 	medium:GetPropertyChangedSignal("Position"):Connect(function()
 		if not upperLimit then return end
 		if not lowerLimit then return end
+		if not indexBillboard then return end
+		
+		indexBillboard.ExtentsOffsetWorldSpace = Vector3.new(0, ((medium.Position.Y + (medium.Size.Y / 2)) + lowerLimit) / 2, medium.Position.Z * 2)
 		
 		if medium.Position.Y + (medium.Size.Y / 2) > upperLimit then
 			medium.DragDetector.Enabled = false
