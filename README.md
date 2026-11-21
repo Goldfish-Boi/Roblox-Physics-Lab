@@ -9,7 +9,7 @@ Instructions to run:
 
 Instuctions to use source code:
 1. Install the latest version of Roblox Studio
-2. Download and open the .RBXL place file
+2. Download and open the .RBXL place file. The .RBXL file can be downloaded from the GitHub source code or from the Releases Page.
 
 Roblox Physics Lab currently contains the following simulations:
 - Medium Refraction - See how light behaves when moving through transparent mediums of different refractive indexes. Drag the blue part of the laser to move it and the magenta part to rotate it. Drag the medium to change its height. Add as many lasers as you like!
