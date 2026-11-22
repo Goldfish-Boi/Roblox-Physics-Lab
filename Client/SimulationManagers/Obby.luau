@@ -16,7 +16,8 @@ function module.run()
 	
 	workspace.Camera.CameraType = Enum.CameraType.Custom
 	
-	if local character = players.LocalPlayer.Character then
+	local character = players.LocalPlayer.Character
+	if character then
 		character:PivotTo(CFrame.new(0, 125, 0))
 	end
 	
@@ -38,8 +39,9 @@ end
 
 function module.cleanup()
 	if not players.LocalPlayer then return end
-
-	if local character = players.LocalPlayer.Character then
+	
+	local character = players.LocalPlayer.Character
+	if character then
 		character:PivotTo(CFrame.new(0, -36, 0))
 	end
 end
