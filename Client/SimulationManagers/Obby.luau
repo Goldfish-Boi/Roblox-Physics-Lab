@@ -30,7 +30,8 @@ function module.run()
 			
 			script.Win:Play()
 			
-			if local character = players.LocalPlayer.Character then
+			local character = players.LocalPlayer.Character
+			if character then
 				character:PivotTo(CFrame.new(0, 125, 0))
 			end
 		end)
